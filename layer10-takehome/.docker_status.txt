@@ -1,0 +1,6 @@
+[1;32mzsh[0m: command [1;35mNOT[0m found: [0;1m'docker'[0m
+[0;1mSearching for packages that provide '[0;1mdocker[1;32m'...
+[0mwarning: database file for 'chaotic-aur' does not exist (use '-Fy' to download)
+usr/bin/docker is owned by extra/docker 1:28.3.3-1
+usr/bin/docker is owned by extra/podman-docker 5.5.2-1
+[1;32m[ docker ] [0m might be provided by the above packages.
