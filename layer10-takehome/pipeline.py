@@ -22,6 +22,7 @@ from typing import Any
 from config import get_settings
 from ingestion.dedup_emails import deduplicate_emails
 from ingestion.parse_enron import RawEmail, iter_maildir
+from ingestion.signal_filter import filter_emails
 from ingestion.thread_builder import build_threads
 from extraction.extractor import EmailForExtraction, Extractor
 from extraction.versioning import generate_version_tag
@@ -58,8 +59,12 @@ async def run_ingestion() -> int:
     raw_emails = list(iter_maildir(settings.enron_path, settings.enron_user_list))
     logger.info("parsing_complete", total_parsed=len(raw_emails))
 
+    # Signal filter — drop low-value folders + non-Enron emails (cheap, pre-dedup)
+    filtered_emails, filter_stats = filter_emails(raw_emails)
+    logger.info("signal_filter_complete", **filter_stats)
+
     # Dedup
-    dedup_result = deduplicate_emails(raw_emails)
+    dedup_result = deduplicate_emails(filtered_emails)
     unique_emails = dedup_result.unique_emails
     logger.info("dedup_complete", unique=len(unique_emails), stats=dedup_result.stats)
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api, type ClaimWithEvidence, type EntityDetail } from "../api";
+import { typeColor } from "../colors";
 import { FileText, Clock, User, Mail, ChevronDown, ChevronRight, Shield } from "lucide-react";
 
 interface Props {
@@ -80,7 +81,7 @@ export default function EvidencePanel({ entityId }: Props) {
       {entity && (
         <div className="entity-header">
           <h3>{entity.canonical_name}</h3>
-          <span className={`type-badge ${entity.entity_type}`}>{entity.entity_type}</span>
+          <span className="type-badge" style={{ background: `${typeColor(entity.entity_type)}22`, color: typeColor(entity.entity_type) }}>{entity.entity_type}</span>
         </div>
       )}
 

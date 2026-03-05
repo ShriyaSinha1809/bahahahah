@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api, type EntityDetail } from "../api";
+import { typeColor } from "../colors";
 import { Combine, Tag, Settings2 } from "lucide-react";
 
 interface Props {
@@ -49,7 +50,7 @@ export default function MergeInspector({ entityId }: Props) {
     <div>
       <div className="entity-header">
         <h3>{entity.canonical_name}</h3>
-        <span className={`type-badge ${entity.entity_type}`}>{entity.entity_type}</span>
+        <span className="type-badge" style={{ background: `${typeColor(entity.entity_type)}22`, color: typeColor(entity.entity_type) }}>{entity.entity_type}</span>
       </div>
 
       {/* ID */}

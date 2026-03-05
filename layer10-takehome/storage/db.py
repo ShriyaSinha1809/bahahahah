@@ -16,6 +16,7 @@ Design decisions:
 
 from __future__ import annotations
 
+import json
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -218,7 +219,7 @@ class EntityRepository:
         result = await session.execute(
             text("""
                 INSERT INTO entities (id, canonical_name, entity_type, aliases, properties)
-                VALUES (:id, :name, :type, :aliases, :props::jsonb)
+                VALUES (:id, :name, :type, :aliases, CAST(:props AS jsonb))
                 ON CONFLICT (id) DO UPDATE SET
                     canonical_name = EXCLUDED.canonical_name,
                     aliases = EXCLUDED.aliases,
@@ -231,7 +232,7 @@ class EntityRepository:
                 "name": canonical_name,
                 "type": entity_type,
                 "aliases": aliases or [],
-                "props": str(properties or {}),
+                "props": json.dumps(properties or {}),
             },
         )
         row = result.fetchone()
@@ -351,7 +352,7 @@ class ClaimRepository:
                     id, claim_type, subject_id, object_id, properties,
                     confidence, valid_from, valid_to
                 ) VALUES (
-                    :id, :type, :subject, :object, :props::jsonb,
+                    :id, :type, :subject, :object, CAST(:props AS jsonb),
                     :confidence, :valid_from, :valid_to
                 )
             """),
@@ -360,7 +361,7 @@ class ClaimRepository:
                 "type": claim_type,
                 "subject": subject_id,
                 "object": object_id,
-                "props": str(properties or {}),
+                "props": json.dumps(properties or {}),
                 "confidence": confidence,
                 "valid_from": valid_from,
                 "valid_to": valid_to,
@@ -528,16 +529,16 @@ class ProcessingLogRepository:
             text("""
                 UPDATE processing_log
                 SET status = 'completed',
-                    raw_output = :raw::jsonb,
-                    validated_output = :validated::jsonb,
+                    raw_output = CAST(:raw AS jsonb),
+                    validated_output = CAST(:validated AS jsonb),
                     processed_at = now()
                 WHERE email_id = :email_id AND extraction_version = :version
             """),
             {
                 "email_id": email_id,
                 "version": extraction_version,
-                "raw": str(raw_output) if raw_output else None,
-                "validated": str(validated_output) if validated_output else None,
+                "raw": json.dumps(raw_output) if raw_output else None,
+                "validated": json.dumps(validated_output) if validated_output else None,
             },
         )
 

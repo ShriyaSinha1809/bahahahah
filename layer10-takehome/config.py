@@ -35,7 +35,8 @@ class Settings(BaseSettings):
 
     # ── LLM — Google (fallback) ───────────────────────────
     google_api_key: str = ""
-    google_model: str = "gemini-2.5-flash"
+    google_model: str = "gemini-2.0-flash"
+    use_google_primary: bool = False
 
     # ── Extraction ────────────────────────────────────────
     extraction_batch_size: int = 10

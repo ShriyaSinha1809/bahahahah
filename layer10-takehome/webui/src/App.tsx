@@ -101,6 +101,7 @@ export default function App() {
       const pack = await api.query(query, 2, minConfidence);
       // Build graph from context pack
       const nodesMap = new Map<string, GraphNode>();
+      const nameToId = new Map<string, string>();
       for (const e of pack.entities) {
         nodesMap.set(e.entity_id, {
           id: e.entity_id,
@@ -108,15 +109,25 @@ export default function App() {
           type: e.entity_type,
           aliases: e.aliases,
         });
+        // Map canonical name + aliases to ID for edge resolution
+        nameToId.set(e.canonical_name.toLowerCase(), e.entity_id);
+        for (const a of e.aliases) {
+          nameToId.set(a.toLowerCase(), e.entity_id);
+        }
       }
-      const edges = pack.claims.map((c) => ({
-        id: c.claim_id,
-        source: c.subject,
-        target: c.object,
-        type: c.claim_type,
-        confidence: c.confidence,
-        label: c.claim_type,
-      })).filter((e) => nodesMap.has(e.source) && nodesMap.has(e.target));
+      const edges = pack.claims.map((c) => {
+        // subject/object may be names OR ids
+        const srcId = nodesMap.has(c.subject) ? c.subject : nameToId.get(c.subject.toLowerCase());
+        const tgtId = nodesMap.has(c.object) ? c.object : nameToId.get(c.object.toLowerCase());
+        return {
+          id: c.claim_id,
+          source: srcId ?? c.subject,
+          target: tgtId ?? c.object,
+          type: c.claim_type,
+          confidence: c.confidence,
+          label: c.claim_type,
+        };
+      }).filter((e) => nodesMap.has(e.source) && nodesMap.has(e.target));
 
       const nodes = Array.from(nodesMap.values());
       setGraphData({ nodes, edges });

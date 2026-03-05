@@ -104,24 +104,33 @@ class LLMClient:
     def __init__(self) -> None:
         settings = get_settings()
 
-        # Primary: Groq
-        self._primary = AsyncOpenAI(
+        groq_client = AsyncOpenAI(
             api_key=settings.groq_api_key,
             base_url=settings.groq_base_url,
         )
-        self._primary_model = settings.groq_model
 
-        # Fallback: Google (if configured)
-        self._fallback: AsyncOpenAI | None = None
-        self._fallback_model: str | None = None
+        google_client: AsyncOpenAI | None = None
         if settings.google_api_key:
-            self._fallback = AsyncOpenAI(
+            google_client = AsyncOpenAI(
                 api_key=settings.google_api_key,
                 base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
             )
-            self._fallback_model = settings.google_model
 
-        # Rate limiter: stay under Groq's 6K tokens/min ≈ 80 requests/min
+        # Swap primary/fallback based on config flag
+        if settings.use_google_primary and google_client:
+            self._primary = google_client
+            self._primary_model = settings.google_model
+            self._fallback = groq_client
+            self._fallback_model = settings.groq_model
+            logger.info("llm_provider", primary="google", model=settings.google_model)
+        else:
+            self._primary = groq_client
+            self._primary_model = settings.groq_model
+            self._fallback = google_client
+            self._fallback_model = settings.google_model if google_client else None
+            logger.info("llm_provider", primary="groq", model=settings.groq_model)
+
+        # Rate limiter
         self._rate_limiter = AsyncLimiter(
             max_rate=settings.extraction_rate_limit_rpm,
             time_period=60,
@@ -318,7 +327,7 @@ class Extractor:
     async def extract_batch(
         self,
         emails: list[EmailForExtraction],
-        concurrency: int = 5,
+        concurrency: int = 20,
     ) -> list[tuple[EmailForExtraction, ValidationResult | None]]:
         """
         Extract from a batch of emails with controlled concurrency.
