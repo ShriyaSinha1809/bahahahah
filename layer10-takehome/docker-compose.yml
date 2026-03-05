@@ -12,7 +12,7 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./storage/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      # schema applied manually via 'make migrate' to avoid init-script extension issues
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-layer10}"]
       interval: 5s

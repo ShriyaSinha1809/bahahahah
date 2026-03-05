@@ -1,14 +1,26 @@
-.PHONY: db db-down ingest extract serve test lint clean download export examples
+.PHONY: db db-down migrate ingest extract serve test lint clean download export examples
 
 # ─── Database ──────────────────────────────────────────────
 db:
 	docker compose up -d postgres
 	@echo "Waiting for Postgres to be ready..."
 	@until docker compose exec postgres pg_isready -U layer10 2>/dev/null; do sleep 1; done
-	@echo "Postgres is ready."
+	@echo "Postgres is ready. Applying schema..."
+	$(MAKE) migrate
+	@echo "Schema applied."
 
 db-down:
 	docker compose down -v
+
+# ─── Schema Migration ──────────────────────────────────────
+# Applies storage/schema.sql to the running container.
+# Safe to re-run (all statements use IF NOT EXISTS).
+migrate:
+	docker compose exec -T postgres psql \
+		-U layer10 -d layer10 \
+		-v ON_ERROR_STOP=0 \
+		< storage/schema.sql
+	@echo "Migration complete."
 
 # ─── Data Download ─────────────────────────────────────────
 download:

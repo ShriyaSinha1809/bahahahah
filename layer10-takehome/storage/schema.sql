@@ -13,7 +13,7 @@
 -- =============================================================
 
 -- Enable extensions
-CREATE EXTENSION IF NOT EXISTS "pgvector";
+CREATE EXTENSION IF NOT EXISTS "vector";          -- pgvector (extension name is 'vector')
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";    -- for fuzzy text search
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
