@@ -85,7 +85,7 @@ Three time dimensions:
 2. **Validity time:** `[valid_from, valid_to)` on claims — when the claim was true
 3. **Extraction time:** When we extracted the claim (for versioning)
 
-Claims with `valid_to = NULL` are "currently true." When information changes (e.g., role change), the old claim gets `valid_to` set and a new claim is created. Both remain queryable — nothing is overwritten.
+Claims with `valid_to = NULL` are "currently true." When a conflicting claim for a mutually-exclusive relationship arrives (WORKS_AT, REPORTS_TO), the pipeline actively closes the old claim's validity window by setting `valid_to = new_claim.valid_from`. The old claim becomes historical (queryable with `include_historical=true`) and `is_current` flips to `false`. Both coexist in the graph — nothing is deleted.
 
 ### Idempotency
 - `processing_log` tracks (email_id, extraction_version) with UNIQUE constraint
@@ -108,6 +108,18 @@ When the schema or prompt changes:
 - **Entity resolution precision:** Manual audit of merge events. Target: >90% correct merges.
 - **Confidence calibration:** Do claims at 0.9 confidence actually have ~90% accuracy?
 
+### Human Review Queue
+Claims extracted with confidence 0.4–0.5 are stored with `pending_review = true`. These are surfaced via `GET /api/review-queue` for human inspection before becoming "trusted" memory. A reviewer can confirm (update `pending_review = false`) or reject (delete). This is the human-in-the-loop quality gate that prevents borderline extractions from polluting durable memory.
+
+### Observability Endpoint
+`GET /api/metrics` returns a `MetricsResponse` covering:
+- Volume: emails, entities, claims, evidence, merges
+- Quality: `pending_review_claims`, `avg_confidence`, `low_confidence_claims`, `high_confidence_claims`
+- Temporal: `current_claims` vs `historical_claims`
+- Health: `failed_extractions`, `reversed_merges`
+
+A spike in `pending_review_claims` or a drop in `avg_confidence` signals a prompt regression or model degradation.
+
 ### Audit Approach
 1. Randomly sample 50 extraction results
 2. Manually verify: Are entities correct? Are claims supported by evidence? Are any claims hallucinated?
@@ -123,20 +135,69 @@ When the schema or prompt changes:
 
 ## 6. Layer10 Adaptation
 
-| Aspect | Enron (Built) | Layer10 (Production) |
-|---|---|---|
-| **Sources** | Email only | Email + Slack + Jira + Docs + Calendar |
-| **Ontology** | 6 entity types, 9 claim types | Add: Ticket, Sprint, Decision, Action Item, Channel |
-| **Identity resolution** | Email address + name matching | + Slack handles + Jira usernames + SSO identity |
-| **Durability** | All claims durable | Decisions/ownership = durable; casual chat = ephemeral |
-| **Permissions** | Conceptual source_access table | Row-level security: filter claims by user's source access |
-| **Deletions** | Soft-delete only | GDPR-aware: hard-delete evidence, cascade claim removal |
-| **Scale** | ~500K emails, single-machine | Millions of artifacts; streaming ingestion (Kafka/SQS) |
-| **Extraction cost** | Free-tier LLM | Fine-tuned small model for extraction, large model for disambiguation |
-| **Evaluation** | Manual audit | Automated regression: golden set with CI/CD F1 checks |
+### Unstructured + Structured Fusion
 
-### Key Architectural Changes for Production
-1. **Streaming ingestion:** Replace batch file parsing with event-driven processing (new Slack message → extract → store)
-2. **Embedding index scaling:** Move from ivfflat to HNSW indexes, or use a dedicated vector store (Pinecone/Weaviate)
-3. **Multi-tenant isolation:** Workspace-scoped queries with connection-level RLS
-4. **Observability:** Structured logging → Datadog/Grafana pipeline with extraction latency, quality, and cost dashboards
+Connecting email/chat discussions to structured work artifacts requires a unified identity layer and cross-source entity linking:
+
+| Source type | Entity additions | Claim additions |
+|---|---|---|
+| Email | Person, Organization | SENT_TO, MENTIONS |
+| Slack | Channel, Message | DISCUSSED_IN, REACTED_TO |
+| Jira/Linear | Ticket, Sprint, Component | ASSIGNED_TO, TRANSITIONED, BLOCKS |
+| Google Docs | Document, Section | AUTHORED, REVIEWED, REFERENCED |
+
+A Slack thread referencing a Jira ticket ID becomes a `DISCUSSED_IN` claim linking the thread to the ticket entity. A `REFERENCES_DOC` claim from an email to a Google Doc creates a cross-source edge, letting the retrieval layer traverse from a question about a decision to the discussion that led to it.
+
+### Long-Term Memory vs Ephemeral Context
+
+Not all extracted content should become durable memory:
+
+**Durable (graph-persisted):**
+- Decisions and their reversals (`DECIDED` with `status=confirmed|reversed`)
+- Ownership and role changes (`WORKS_AT`, `REPORTS_TO` with temporal windows)
+- Document authorship and formal sign-offs
+- Project participation and outcomes
+- Anything cited 2+ times across independent sources (cross-evidence boosting)
+
+**Ephemeral (expiry or lower retention tier):**
+- Casual chat messages with no actionable content (Slack reactions, quick acknowledgements)
+- Draft states of documents that were superseded
+- Claims with single-source support and low confidence (<0.5) that haven't been confirmed by a reviewer
+
+An `expires_at` column on claims (NULL = permanent) allows ephemeral context to be pruned on a schedule. Durable claims never expire unless explicitly redacted.
+
+### Grounding & Safety: Deletions and Redactions
+
+The evidence-first model gives precise deletion semantics:
+
+1. **Source deletion:** When a source message is deleted (e.g., a Slack message removed by the sender), look up all `evidence` rows for that `source_id`. For each, check if the linked claim has *other* evidence. If yes, mark that evidence row soft-deleted. If the claim has *no remaining evidence*, soft-delete the claim too. Nothing is silently lost.
+
+2. **GDPR redaction requests:** Hard-delete the `evidence` rows for the person's source messages. Cascade: claims with no remaining evidence are hard-deleted. Claims with other evidence survive but drop the redacted excerpts. This is audited in `merge_events` with `action_type='redaction'`.
+
+3. **Provenance citations:** Every item returned by `GET /api/query` includes `EvidenceSnippet` records with `source_id`, `sender`, `excerpt`, and `source_date`. A consumer can always trace any memory item back to its exact source and verify it.
+
+### Permissions
+
+Memory retrieval must be constrained by the user's access to underlying sources:
+
+**Model:** `source_access(source_id, user_id, access_level)` maps each source message to which users can see it. At query time, claims are filtered to only those with at least one evidence row in a source the requesting user can access.
+
+**Implementation path:**
+- `GET /api/query?user_id={uid}` passes the user context into the retrieval pipeline
+- The graph expansion query joins `evidence` → `source_access` and only returns claims where a row exists for `(source_id, uid)`
+- This is currently a post-retrieval filter (demonstrated) and in production would be pushed into the SQL as a subquery for efficiency: `EXISTS (SELECT 1 FROM source_access sa WHERE sa.source_id = e.source_id AND sa.user_id = :uid)`
+
+**Implications:** A user who has access to email thread A but not Slack channel B will see claims grounded in A but not those grounded only in B. Claims with multi-source evidence show only the accessible excerpts.
+
+### Operational Reality
+
+| Concern | Current | Production path |
+|---|---|---|
+| **Ingestion scale** | Batch file parsing | Event-driven: Kafka/SQS consumer per source type |
+| **Extraction throughput** | ~80 req/min (Groq free tier) | Fine-tune a small model (7B) on annotated samples; use large model only for ambiguous disambiguation |
+| **Vector index** | IVFFlat (lists=100) | HNSW index (pgvector 0.7+ or Weaviate) for sub-10ms at 10M+ embeddings |
+| **Multi-tenancy** | Single DB | Workspace-scoped connection pools + Postgres RLS policies |
+| **Evaluation / regression** | Manual audit | Golden set of annotated email → extraction pairs; CI/CD computes F1 per entity/claim type; alert if F1 drops >5% |
+| **Cost** | Free tier ($0) | ~$0.01–0.05 per email for extraction; amortize with incremental (only new emails) |
+| **Observability** | structlog → stdout | Structured logs → Datadog; `GET /api/metrics` polled by Grafana; alert on `avg_confidence < 0.7` or `failed_extractions > 10%` |
+

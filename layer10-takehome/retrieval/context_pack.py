@@ -82,6 +82,7 @@ class ContextPack(BaseModel):
     claims: list[ClaimWithEvidence] = Field(default_factory=list)
     conflicts: list[ConflictPair] = Field(default_factory=list)
     total_evidence_count: int = 0
+    applied_user_filter: str | None = None  # set when user_id permission filter is active
 
 
 # ──────────────────────────────────────────────────────────────

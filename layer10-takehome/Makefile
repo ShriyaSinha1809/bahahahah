@@ -1,4 +1,4 @@
-.PHONY: db db-down ingest extract serve test lint clean download
+.PHONY: db db-down ingest extract serve test lint clean download export examples
 
 # ─── Database ──────────────────────────────────────────────
 db:
@@ -31,6 +31,18 @@ extract:
 # ─── API Server ────────────────────────────────────────────
 serve:
 	uvicorn retrieval.api:app --host 0.0.0.0 --port 8000 --reload
+
+# ─── Outputs ───────────────────────────────────────────────
+# Export the full memory graph to outputs/graph_export.json
+export:
+	mkdir -p outputs
+	python scripts/export_graph.py --out outputs/
+
+# Generate example context-pack JSON files (requires API to be running)
+# Run 'make serve' in another terminal first.
+examples:
+	mkdir -p outputs/example_queries
+	python scripts/generate_examples.py --api http://localhost:8000
 
 # ─── Quality ───────────────────────────────────────────────
 test:

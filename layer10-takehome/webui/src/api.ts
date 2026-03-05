@@ -71,6 +71,35 @@ export interface StatsResponse {
   total_evidence: number;
 }
 
+export interface MergeEvent {
+  event_id: string;
+  action_type: string;
+  source_ids: string[];
+  target_id: string;
+  reason: string;
+  confidence: number | null;
+  created_at: string | null;
+  reversed_at: string | null;
+  reversed_reason: string | null;
+}
+
+export interface MetricsResponse {
+  total_emails: number;
+  total_entities: number;
+  total_claims: number;
+  total_evidence: number;
+  total_merges: number;
+  pending_review_claims: number;
+  failed_extractions: number;
+  completed_extractions: number;
+  avg_confidence: number;
+  low_confidence_claims: number;
+  high_confidence_claims: number;
+  historical_claims: number;
+  current_claims: number;
+  reversed_merges: number;
+}
+
 export interface ContextPack {
   question: string;
   entities: EntitySummary[];
@@ -105,7 +134,10 @@ export const api = {
     q.set("current_only", "false");
     return get<ClaimWithEvidence[]>(`/api/entity/${id}/claims?${q}`);
   },
+  entityMerges: (id: string) => get<MergeEvent[]>(`/api/entity/${id}/merges`),
   claimEvidence: (id: string) => get<EvidenceSnippet[]>(`/api/claim/${id}/evidence`),
+  reviewQueue: (limit = 50) => get<ClaimWithEvidence[]>(`/api/review-queue?limit=${limit}`),
+  metrics: () => get<MetricsResponse>("/api/metrics"),
   query: (question: string, depth = 2, minConfidence = 0.5) =>
     get<ContextPack>(
       `/api/query?q=${encodeURIComponent(question)}&depth=${depth}&min_confidence=${minConfidence}`

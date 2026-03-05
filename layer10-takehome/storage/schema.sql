@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS claims (
     valid_from      TIMESTAMPTZ,
     valid_to        TIMESTAMPTZ,        -- NULL = currently valid
     is_current      BOOLEAN NOT NULL DEFAULT true,
+    pending_review  BOOLEAN NOT NULL DEFAULT false,  -- true = confidence 0.4–0.5, awaiting human review
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

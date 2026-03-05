@@ -343,6 +343,7 @@ class ClaimRepository:
         valid_from: datetime | None = None,
         valid_to: datetime | None = None,
         claim_id: str | None = None,
+        pending_review: bool = False,
     ) -> str:
         """Insert a new claim. Returns the claim UUID."""
         cid = claim_id or str(uuid.uuid4())
@@ -350,10 +351,10 @@ class ClaimRepository:
             text("""
                 INSERT INTO claims (
                     id, claim_type, subject_id, object_id, properties,
-                    confidence, valid_from, valid_to
+                    confidence, valid_from, valid_to, pending_review
                 ) VALUES (
                     :id, :type, :subject, :object, CAST(:props AS jsonb),
-                    :confidence, :valid_from, :valid_to
+                    :confidence, :valid_from, :valid_to, :pending_review
                 )
             """),
             {
@@ -365,9 +366,75 @@ class ClaimRepository:
                 "confidence": confidence,
                 "valid_from": valid_from,
                 "valid_to": valid_to,
+                "pending_review": pending_review,
             },
         )
         return cid
+
+    @staticmethod
+    async def invalidate_conflicting(
+        session: AsyncSession,
+        subject_id: str,
+        claim_type: str,
+        new_valid_from: datetime | None,
+    ) -> int:
+        """
+        Invalidate existing current claims of the same type for the same
+        subject when a newer conflicting claim arrives.
+
+        Only applies to mutually-exclusive claim types: WORKS_AT, REPORTS_TO.
+        Sets is_current=false and valid_to=new_valid_from on any overlapping
+        claims, giving them a closed validity window.
+
+        Returns the number of rows updated.
+        """
+        if claim_type not in ("WORKS_AT", "REPORTS_TO"):
+            return 0
+        cutoff = new_valid_from or datetime.utcnow()
+        result = await session.execute(
+            text("""
+                UPDATE claims
+                SET is_current = false,
+                    valid_to = :cutoff
+                WHERE subject_id = :subject
+                  AND claim_type  = :ctype
+                  AND is_current  = true
+                  AND (valid_to IS NULL OR valid_to > :cutoff)
+                RETURNING id
+            """),
+            {"subject": subject_id, "ctype": claim_type, "cutoff": cutoff},
+        )
+        rows = result.fetchall()
+        if rows:
+            logger.info(
+                "claims_invalidated",
+                count=len(rows),
+                subject_id=subject_id,
+                claim_type=claim_type,
+            )
+        return len(rows)
+
+    @staticmethod
+    async def get_pending_review(
+        session: AsyncSession,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Return claims flagged for human review (low-confidence inserts)."""
+        result = await session.execute(
+            text("""
+                SELECT c.*,
+                       s.canonical_name AS subject_name,
+                       o.canonical_name AS object_name
+                FROM claims c
+                JOIN entities s ON c.subject_id = s.id
+                JOIN entities o ON c.object_id = o.id
+                WHERE c.pending_review = true
+                ORDER BY c.confidence ASC, c.created_at DESC
+                LIMIT :limit
+            """),
+            {"limit": limit},
+        )
+        return [dict(row._mapping) for row in result.fetchall()]
 
     @staticmethod
     async def get_for_entity(
@@ -616,3 +683,23 @@ class MergeEventRepository:
             """),
             {"id": event_id, "reason": reason},
         )
+
+    @staticmethod
+    async def get_history_for_entity(
+        session: AsyncSession,
+        entity_id: str,
+    ) -> list[dict[str, Any]]:
+        """
+        Return all merge events involving a specific entity
+        (as either source or target), most recent first.
+        """
+        result = await session.execute(
+            text("""
+                SELECT * FROM merge_events
+                WHERE target_id = :eid
+                   OR :eid = ANY(source_ids)
+                ORDER BY created_at DESC
+            """),
+            {"eid": entity_id},
+        )
+        return [dict(row._mapping) for row in result.fetchall()]

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import datetime
 from typing import Any
 
 from config import get_settings
@@ -217,6 +218,28 @@ async def run_extraction(batch_size: int | None = None) -> dict[str, Any]:
                         subj_id = entity_id_map.get(claim.subject.lower())
                         obj_id = entity_id_map.get(claim.object.lower())
                         if subj_id and obj_id:
+                            # Invalidate any conflicting current claim for
+                            # mutually-exclusive types (WORKS_AT, REPORTS_TO)
+                            # before inserting the new one, closing the old
+                            # claim's validity window.
+                            email_date: datetime | None = None
+                            _date_str = email_data.date
+                            if _date_str:
+                                try:
+                                    email_date = datetime.fromisoformat(
+                                        _date_str.replace("Z", "+00:00")
+                                    )
+                                except ValueError:
+                                    email_date = None
+                            await ClaimRepository.invalidate_conflicting(
+                                session,
+                                subject_id=subj_id,
+                                claim_type=claim.type.value,
+                                new_valid_from=email_date,
+                            )
+                            # Claims with confidence below 0.5 are stored but
+                            # flagged for human review.
+                            pending = claim.confidence < 0.5
                             cid = await ClaimRepository.insert(
                                 session,
                                 claim_type=claim.type.value,
@@ -224,6 +247,7 @@ async def run_extraction(batch_size: int | None = None) -> dict[str, Any]:
                                 object_id=obj_id,
                                 properties=claim.properties,
                                 confidence=claim.confidence,
+                                pending_review=pending,
                             )
                             await EvidenceRepository.insert(
                                 session,
