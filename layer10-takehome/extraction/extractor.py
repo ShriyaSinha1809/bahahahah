@@ -346,10 +346,14 @@ class Extractor:
         tasks = [_process(em) for em in emails]
         completed = await asyncio.gather(*tasks, return_exceptions=True)
 
-        for item in completed:
+        for i, item in enumerate(completed):
             if isinstance(item, Exception):
-                logger.error("batch_item_exception", error=str(item))
-                results.append((emails[0], None))  # placeholder
+                logger.error(
+                    "batch_item_exception",
+                    error=str(item),
+                    email_id=emails[i].message_id if i < len(emails) else "unknown",
+                )
+                results.append((emails[i] if i < len(emails) else emails[0], None))
             else:
                 results.append(item)
 

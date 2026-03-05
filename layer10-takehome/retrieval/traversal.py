@@ -79,13 +79,8 @@ async def expand_entity_graph(
 
             for claim in filtered_claims:
                 all_claims.append(claim)
-                cid = str(claim["id"])
 
-                # Fetch evidence
-                evidence = await EvidenceRepository.get_for_claim(session, cid)
-                evidence_map[cid] = evidence
-
-                # Discover neighbor entities
+                # Discover neighbor entities (evidence fetched in batch below)
                 for key in ("subject_id", "object_id"):
                     neighbor_id = str(claim[key])
                     if neighbor_id not in visited_entities:
@@ -94,16 +89,21 @@ async def expand_entity_graph(
 
         frontier = next_frontier
 
-    # Fetch full entity records for all discovered entities
-    nodes: list[dict[str, Any]] = []
-    for eid in visited_entities:
-        result = await session.execute(
-            text("SELECT * FROM entities WHERE id = :id"),
-            {"id": eid},
+    # Batch-fetch evidence for all collected claims in a single query
+    all_claim_ids = [str(c["id"]) for c in all_claims]
+    if all_claim_ids:
+        evidence_map = await EvidenceRepository.get_for_claims_batch(
+            session, all_claim_ids
         )
-        row = result.fetchone()
-        if row:
-            nodes.append(dict(row._mapping))
+
+    # Batch-fetch full entity records for all discovered entities in one query
+    nodes: list[dict[str, Any]] = []
+    if visited_entities:
+        result = await session.execute(
+            text("SELECT * FROM entities WHERE id = ANY(:ids)"),
+            {"ids": list(visited_entities)},
+        )
+        nodes = [dict(row._mapping) for row in result.fetchall()]
 
     logger.info(
         "graph_expansion_complete",

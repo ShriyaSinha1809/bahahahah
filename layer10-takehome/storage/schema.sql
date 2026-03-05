@@ -117,6 +117,7 @@ CREATE INDEX IF NOT EXISTS idx_claims_type ON claims(claim_type);
 CREATE INDEX IF NOT EXISTS idx_claims_current ON claims(is_current) WHERE is_current = true;
 CREATE INDEX IF NOT EXISTS idx_claims_confidence ON claims(confidence);
 CREATE INDEX IF NOT EXISTS idx_claims_temporal ON claims(valid_from, valid_to);
+CREATE INDEX IF NOT EXISTS idx_claims_pending_review ON claims(pending_review) WHERE pending_review = true;
 
 -- =============================================================
 -- Evidence Pointers
@@ -214,6 +215,7 @@ CREATE TABLE IF NOT EXISTS merge_events (
 
 CREATE INDEX IF NOT EXISTS idx_merge_events_target ON merge_events(target_id);
 CREATE INDEX IF NOT EXISTS idx_merge_events_type ON merge_events(action_type);
+CREATE INDEX IF NOT EXISTS idx_merge_events_source_ids ON merge_events USING gin(source_ids);
 
 -- =============================================================
 -- Source Access (conceptual permissions model)

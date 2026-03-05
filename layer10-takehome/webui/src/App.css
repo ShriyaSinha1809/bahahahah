@@ -264,11 +264,14 @@
 .panel-tabs {
   display: flex;
   border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.panel-tabs::-webkit-scrollbar { display: none; }
 .panel-tab {
-  flex: 1;
-  padding: 10px 12px;
-  font-size: 12px;
+  flex: 0 0 auto;
+  padding: 9px 10px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-muted);
   background: transparent;
@@ -526,4 +529,109 @@
 .query-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ── Back to Full Graph button ──────────────────── */
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 5px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: all 0.15s;
+  width: 100%;
+  justify-content: center;
+}
+.back-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Toast Notifications ───────────────────────── */
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 320px;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #1e1e2e;
+  border: 1px solid #f59e0b55;
+  border-radius: var(--radius-sm);
+  color: #f59e0b;
+  font-size: 12px;
+  font-family: var(--font);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  animation: toast-in 0.2s ease;
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Timeline ───────────────────────────────────── */
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding-left: 4px;
+}
+.timeline-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.timeline-spine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 14px;
+}
+.timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 2px;
+  box-shadow: 0 0 0 2px var(--bg-primary);
+}
+.timeline-line {
+  width: 2px;
+  flex: 1;
+  min-height: 16px;
+  background: var(--border);
+  margin: 2px 0;
+}
+.timeline-content {
+  flex: 1;
+  padding-bottom: 14px;
+}
+.timeline-date {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+.timeline-claim {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
 }

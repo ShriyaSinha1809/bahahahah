@@ -264,10 +264,14 @@ async def get_entity_claims(
             session, entity_id, claim_type=claim_type, current_only=current_only
         )
 
+        # Batch-fetch all evidence in one query instead of N individual queries
+        claim_ids = [str(c["id"]) for c in claims]
+        evidence_batch = await EvidenceRepository.get_for_claims_batch(session, claim_ids)
+
         result: list[ClaimWithEvidence] = []
         for claim in claims:
             cid = str(claim["id"])
-            evidence_records = await EvidenceRepository.get_for_claim(session, cid)
+            ev_records = evidence_batch.get(cid, [])
 
             snippets = [
                 EvidenceSnippet(
@@ -278,7 +282,7 @@ async def get_entity_claims(
                     subject=ev.get("email_subject", ""),
                     extraction_version=ev.get("extraction_version", ""),
                 )
-                for ev in evidence_records
+                for ev in ev_records
             ]
 
             result.append(
@@ -366,10 +370,13 @@ async def get_review_queue(
     """
     async with get_session() as session:
         claims = await ClaimRepository.get_pending_review(session, limit=limit)
+        claim_ids = [str(c["id"]) for c in claims]
+        # Batch-fetch evidence in one query
+        evidence_batch = await EvidenceRepository.get_for_claims_batch(session, claim_ids)
         result: list[ClaimWithEvidence] = []
         for claim in claims:
             cid = str(claim["id"])
-            evidence_records = await EvidenceRepository.get_for_claim(session, cid)
+            ev_records = evidence_batch.get(cid, [])
             snippets = [
                 EvidenceSnippet(
                     source_id=ev.get("source_id", ""),
@@ -379,7 +386,7 @@ async def get_review_queue(
                     subject=ev.get("email_subject", ""),
                     extraction_version=ev.get("extraction_version", ""),
                 )
-                for ev in evidence_records
+                for ev in ev_records
             ]
             result.append(
                 ClaimWithEvidence(
@@ -538,3 +545,99 @@ async def get_metrics() -> MetricsResponse:
 async def health() -> dict[str, str]:
     """Health check endpoint."""
     return {"status": "ok"}
+
+
+# ──────────────────────────────────────────────────────────────
+# New: Timeline + Merge Reversal
+# ──────────────────────────────────────────────────────────────
+
+
+class TimelineEntry(BaseModel):
+    """A single claim entry on the entity timeline."""
+
+    claim_id: str
+    claim_type: str
+    subject: str
+    object: str
+    confidence: float
+    valid_from: Any = None
+    valid_to: Any = None
+    is_current: bool = True
+    evidence_count: int = 0
+
+
+@app.get("/api/timeline", response_model=list[TimelineEntry])
+async def get_timeline(
+    entity_id: str = Query(..., description="Entity UUID to show timeline for"),
+    include_historical: bool = Query(True, description="Include superseded claims"),
+    limit: int = Query(100, ge=1, le=500),
+) -> list[TimelineEntry]:
+    """
+    Return all claims for an entity ordered chronologically.
+
+    Useful for building a visual timeline showing how relationships
+    evolved over time (e.g. org-chart changes at Enron).
+    """
+    async with get_session() as session:
+        entity = await EntityRepository.get_by_id(session, entity_id)
+        if not entity:
+            raise HTTPException(status_code=404, detail="Entity not found")
+
+        claims = await ClaimRepository.get_for_entity(
+            session,
+            entity_id,
+            current_only=not include_historical,
+            limit=limit,
+        )
+
+        # Get evidence counts in one batch query
+        claim_ids = [str(c["id"]) for c in claims]
+        ev_batch = await EvidenceRepository.get_for_claims_batch(session, claim_ids)
+
+        entries: list[TimelineEntry] = []
+        for claim in sorted(
+            claims,
+            key=lambda c: (c.get("valid_from") or c.get("created_at") or ""),
+        ):
+            cid = str(claim["id"])
+            entries.append(
+                TimelineEntry(
+                    claim_id=cid,
+                    claim_type=claim["claim_type"],
+                    subject=claim.get("subject_name", ""),
+                    object=claim.get("object_name", ""),
+                    confidence=claim["confidence"],
+                    valid_from=claim.get("valid_from"),
+                    valid_to=claim.get("valid_to"),
+                    is_current=claim.get("is_current", True),
+                    evidence_count=len(ev_batch.get(cid, [])),
+                )
+            )
+        return entries
+
+
+from fastapi import Body  # noqa: E402 — import at usage point to avoid top-of-file clutter
+
+
+@app.post("/api/merge/{event_id}/reverse")
+async def reverse_merge_event(
+    event_id: str,
+    reason: str = Body(..., embed=True, description="Why this merge is being undone"),
+) -> dict[str, str]:
+    """
+    Reverse a merge event.
+
+    Sets reversed_at + reversed_reason on the event record without
+    deleting source data, preserving the full audit trail.
+    """
+    async with get_session() as session:
+        result = await session.execute(
+            text("SELECT id FROM merge_events WHERE id = :id"),
+            {"id": event_id},
+        )
+        if not result.fetchone():
+            raise HTTPException(status_code=404, detail="Merge event not found")
+
+        await MergeEventRepository.reverse_merge(session, event_id=event_id, reason=reason)
+        logger.info("merge_reversed", event_id=event_id, reason=reason)
+        return {"status": "reversed", "event_id": event_id}

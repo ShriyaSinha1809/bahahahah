@@ -24,10 +24,55 @@ export default function GraphView({ data, selectedEntity, onSelectEntity }: Prop
   const containerRef = useRef<HTMLDivElement>(null);
   const sigmaRef = useRef<Sigma | null>(null);
   const graphRef = useRef<Graph | null>(null);
+  // Track the node-set key to detect structural changes vs filter-only changes
+  const prevNodeKeyRef = useRef<string>("");
 
   // Build / rebuild the graph when data changes
   useEffect(() => {
     if (!containerRef.current) return;
+
+    const nodeKey = data ? data.nodes.map((n) => n.id).sort().join("|") : "";
+
+    // ── Fast path: same node set, only edge visibility changed ──────────────
+    if (
+      nodeKey === prevNodeKeyRef.current &&
+      nodeKey !== "" &&
+      sigmaRef.current &&
+      graphRef.current
+    ) {
+      const graph = graphRef.current;
+      const allowedEdgeIds = new Set(data!.edges.map((e) => e.id));
+
+      // Drop edges that no longer pass the filter
+      for (const edge of graph.edges()) {
+        if (!allowedEdgeIds.has(edge)) {
+          graph.dropEdge(edge);
+        }
+      }
+
+      // Add edges now passing the filter that weren't there before
+      for (const edge of data!.edges) {
+        if (!graph.hasEdge(edge.id)) {
+          try {
+            graph.addEdgeWithKey(edge.id, edge.source, edge.target, {
+              label: edge.label,
+              size: Math.max(1, edge.confidence * 3),
+              color: `rgba(79, 110, 247, ${0.2 + edge.confidence * 0.5})`,
+              edgeType: edge.type,
+            });
+          } catch {
+            // duplicate key or missing node
+          }
+        }
+      }
+
+      sigmaRef.current.refresh();
+      return;
+    }
+
+    // ── Slow path: node set changed — full rebuild ───────────────────────────
+    prevNodeKeyRef.current = nodeKey;
+
     // Destroy previous instance
     if (sigmaRef.current) {
       sigmaRef.current.kill();
@@ -118,11 +163,17 @@ export default function GraphView({ data, selectedEntity, onSelectEntity }: Prop
     };
   }, [data, onSelectEntity]);
 
-  // Highlight selected node
+  // Highlight selected node + zoom to it
   useEffect(() => {
     const graph = graphRef.current;
     const sigma = sigmaRef.current;
     if (!graph || !sigma) return;
+
+    // Animate camera to selected node
+    if (selectedEntity && graph.hasNode(selectedEntity)) {
+      const { x, y } = sigma.getNodeDisplayData(selectedEntity) ?? { x: 0.5, y: 0.5 };
+      sigma.getCamera().animate({ x, y, ratio: 0.4 }, { duration: 400 });
+    }
 
     // Node reducer for visual state
     sigma.setSetting("nodeReducer", (node, attrs) => {

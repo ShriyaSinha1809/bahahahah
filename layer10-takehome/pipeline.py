@@ -37,6 +37,7 @@ from storage.db import (
     init_db,
     close_db,
 )
+from storage.embeddings import store_entity_embeddings
 from logging_config import get_logger, setup_logging
 
 logger = get_logger(__name__)
@@ -278,6 +279,120 @@ async def run_extraction(batch_size: int | None = None) -> dict[str, Any]:
 
     stats = extractor.stats.as_dict()
     logger.info("extraction_complete", **stats)
+
+    # Stage 2b: Store entity embeddings for semantic search
+    logger.info("pipeline_stage", stage="embeddings")
+    try:
+        async with get_session() as session:
+            all_entities = await EntityRepository.list_all(session, limit=100_000)
+        async with get_session() as session:
+            embed_count = await store_entity_embeddings(session, all_entities)
+        logger.info("embeddings_stored", count=embed_count)
+    except Exception as e:
+        logger.warning("embeddings_skipped", reason=str(e))
+
+    return stats
+
+
+# ──────────────────────────────────────────────────────────────
+# Stage 2c: Claim deduplication
+# ──────────────────────────────────────────────────────────────
+
+
+async def run_claim_dedup() -> dict[str, int]:
+    """
+    Deduplicate claims with identical (subject, type, object) keys.
+
+    Where multiple claims assert the same relationship, keep the one
+    with the highest confidence as is_current=true and mark others
+    superseded. All evidence pointers are retained on the canonical claim.
+
+    Returns counts of examined and merged claims.
+    """
+    logger.info("claim_dedup_start")
+
+    async with get_session() as session:
+        # Find duplicate groups: same subject+type+object with >1 claim
+        result = await session.execute(
+            __import__("sqlalchemy").text("""
+                WITH dupes AS (
+                    SELECT subject_id, claim_type, object_id,
+                           COUNT(*) AS cnt,
+                           MAX(confidence) AS max_conf,
+                           MIN(id::text) AS first_id
+                    FROM claims
+                    WHERE is_current = true
+                    GROUP BY subject_id, claim_type, object_id
+                    HAVING COUNT(*) > 1
+                )
+                SELECT c.id::text AS claim_id,
+                       c.confidence,
+                       d.max_conf,
+                       c.subject_id::text,
+                       c.claim_type,
+                       c.object_id::text
+                FROM claims c
+                JOIN dupes d
+                    ON c.subject_id = d.subject_id
+                   AND c.claim_type = d.claim_type
+                   AND c.object_id  = d.object_id
+                WHERE c.is_current = true
+                ORDER BY c.subject_id, c.claim_type, c.object_id, c.confidence DESC
+            """)
+        )
+        rows = [dict(r._mapping) for r in result.fetchall()]
+
+    # Group and process
+    from itertools import groupby
+    from storage.db import MergeEventRepository
+
+    merged = 0
+    groups: dict[tuple[str, str, str], list[dict]] = {}
+    for row in rows:
+        key = (row["subject_id"], row["claim_type"], row["object_id"])
+        groups.setdefault(key, []).append(row)
+
+    async with get_session() as session:
+        for (subj, ctype, obj), group in groups.items():
+            if len(group) <= 1:
+                continue
+            # group is sorted DESC by confidence: first is canonical
+            canonical_id = group[0]["claim_id"]
+            superseded_ids = [g["claim_id"] for g in group[1:]]
+
+            # Mark superseded claims
+            await session.execute(
+                __import__("sqlalchemy").text("""
+                    UPDATE claims
+                    SET is_current = false, valid_to = now()
+                    WHERE id = ANY(:ids::uuid[])
+                """),
+                {"ids": superseded_ids},
+            )
+
+            # Re-attach their evidence to canonical claim
+            await session.execute(
+                __import__("sqlalchemy").text("""
+                    UPDATE evidence
+                    SET claim_id = :canonical::uuid
+                    WHERE claim_id = ANY(:superseded::uuid[])
+                """),
+                {"canonical": canonical_id, "superseded": superseded_ids},
+            )
+
+            # Log merge event
+            await MergeEventRepository.log_merge(
+                session,
+                action_type="claim_merge",
+                source_ids=superseded_ids,
+                target_id=canonical_id,
+                reason=f"same_semantic_key:{ctype}",
+                confidence=group[0]["confidence"],
+            )
+            merged += len(superseded_ids)
+
+    stats = {"examined_groups": len(groups), "merged_claims": merged}
+    logger.info("claim_dedup_complete", **stats)
     return stats
 
 
@@ -351,6 +466,10 @@ async def run_full_pipeline() -> dict[str, Any]:
     # Stage 3
     logger.info("pipeline_stage", stage="canonicalization")
     results["canonicalization_stats"] = await run_canonicalization()
+
+    # Stage 4
+    logger.info("pipeline_stage", stage="claim_dedup")
+    results["claim_dedup_stats"] = await run_claim_dedup()
 
     await close_db()
 

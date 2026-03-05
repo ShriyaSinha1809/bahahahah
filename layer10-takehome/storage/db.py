@@ -554,6 +554,37 @@ class EvidenceRepository:
         )
         return [dict(row._mapping) for row in result.fetchall()]
 
+    @staticmethod
+    async def get_for_claims_batch(
+        session: AsyncSession,
+        claim_ids: list[str],
+    ) -> dict[str, list[dict[str, Any]]]:
+        """
+        Fetch all evidence for multiple claims in a single query.
+
+        Returns a mapping of claim_id → list of evidence records.
+        Eliminates N+1 when loading evidence for a list of claims.
+        """
+        if not claim_ids:
+            return {}
+        result = await session.execute(
+            text("""
+                SELECT e.*, re.sender, re.subject AS email_subject
+                FROM evidence e
+                LEFT JOIN raw_emails re ON e.source_id = re.message_id
+                WHERE e.claim_id = ANY(:ids)
+                ORDER BY e.claim_id, e.source_timestamp ASC NULLS LAST
+            """),
+            {"ids": claim_ids},
+        )
+        evidence_map: dict[str, list[dict[str, Any]]] = {cid: [] for cid in claim_ids}
+        for row in result.fetchall():
+            d = dict(row._mapping)
+            cid = str(d["claim_id"])
+            if cid in evidence_map:
+                evidence_map[cid].append(d)
+        return evidence_map
+
 
 # ──────────────────────────────────────────────────────────────
 # Repository: Processing Log

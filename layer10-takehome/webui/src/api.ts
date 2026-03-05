@@ -100,6 +100,18 @@ export interface MetricsResponse {
   reversed_merges: number;
 }
 
+export interface TimelineEntry {
+  claim_id: string;
+  claim_type: string;
+  subject: string;
+  object: string;
+  confidence: number;
+  valid_from: string | null;
+  valid_to: string | null;
+  is_current: boolean;
+  evidence_count: number;
+}
+
 export interface ContextPack {
   question: string;
   entities: EntitySummary[];
@@ -135,6 +147,8 @@ export const api = {
     return get<ClaimWithEvidence[]>(`/api/entity/${id}/claims?${q}`);
   },
   entityMerges: (id: string) => get<MergeEvent[]>(`/api/entity/${id}/merges`),
+  entityTimeline: (id: string, includeHistorical = true) =>
+    get<TimelineEntry[]>(`/api/timeline?entity_id=${id}&include_historical=${includeHistorical}`),
   claimEvidence: (id: string) => get<EvidenceSnippet[]>(`/api/claim/${id}/evidence`),
   reviewQueue: (limit = 50) => get<ClaimWithEvidence[]>(`/api/review-queue?limit=${limit}`),
   metrics: () => get<MetricsResponse>("/api/metrics"),
