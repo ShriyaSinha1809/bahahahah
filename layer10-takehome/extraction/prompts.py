@@ -15,10 +15,6 @@ from __future__ import annotations
 import hashlib
 import json
 
-# ──────────────────────────────────────────────────────────────
-# System Prompt
-# ──────────────────────────────────────────────────────────────
-
 SYSTEM_PROMPT = """You are a precise information extraction system analyzing corporate emails. Given an email with its metadata, extract structured knowledge as JSON.
 
 EXTRACT:
@@ -62,10 +58,6 @@ RULES:
 9. DISCUSSES claims link the email (represented as its subject line) to a Topic entity.
 
 Return ONLY valid JSON. No explanation, no markdown fences."""
-
-# ──────────────────────────────────────────────────────────────
-# Few-Shot Examples
-# ──────────────────────────────────────────────────────────────
 
 FEW_SHOT_EXAMPLES = [
     {
@@ -242,12 +234,6 @@ Sally""",
     },
 ]
 
-
-# ──────────────────────────────────────────────────────────────
-# User Prompt Template
-# ──────────────────────────────────────────────────────────────
-
-
 def build_user_prompt(
     sender: str,
     recipients: list[str],
@@ -277,17 +263,10 @@ def build_user_prompt(
 
     return "\n".join(parts)
 
-
-# ──────────────────────────────────────────────────────────────
-# Prompt Versioning
-# ──────────────────────────────────────────────────────────────
-
-
 def get_prompt_hash() -> str:
     """Generate a stable hash of the current prompt configuration."""
     content = SYSTEM_PROMPT + json.dumps(FEW_SHOT_EXAMPLES, sort_keys=True)
     return hashlib.sha256(content.encode()).hexdigest()[:12]
-
 
 def get_version_tag(model_name: str) -> str:
     """Generate a version tag for this extraction configuration."""

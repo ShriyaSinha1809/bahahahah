@@ -26,16 +26,10 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
-
-# ──────────────────────────────────────────────────────────────
-# Keyword / Name Extraction
-# ──────────────────────────────────────────────────────────────
-
 # Simple heuristic: capitalized multi-word phrases are likely entity names
 _NAME_PATTERN = re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b")
 # Single capitalized words (might be names)
 _SINGLE_NAME = re.compile(r"\b([A-Z][a-z]{2,})\b")
-
 
 def extract_candidate_names(question: str) -> list[str]:
     """
@@ -57,12 +51,6 @@ def extract_candidate_names(question: str) -> list[str]:
             candidates.append(name)
 
     return list(dict.fromkeys(candidates))  # dedupe preserving order
-
-
-# ──────────────────────────────────────────────────────────────
-# Entity Linker
-# ──────────────────────────────────────────────────────────────
-
 
 async def link_entities(
     session: AsyncSession,

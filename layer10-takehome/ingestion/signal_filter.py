@@ -13,10 +13,6 @@ from __future__ import annotations
 
 from ingestion.parse_enron import RawEmail
 
-# ──────────────────────────────────────────────────────────────
-# Folder skip-list
-# ──────────────────────────────────────────────────────────────
-
 SKIP_FOLDERS = {
     "all_documents",
     "deleted_items",
@@ -25,10 +21,6 @@ SKIP_FOLDERS = {
     "calendar",
     "straw",
 }
-
-# ──────────────────────────────────────────────────────────────
-# High-signal keyword list
-# ──────────────────────────────────────────────────────────────
 
 SIGNAL_KEYWORDS: list[str] = [
     # Key people
@@ -51,12 +43,6 @@ SIGNAL_KEYWORDS: list[str] = [
 ]
 
 _LOWER_KEYWORDS = [kw.lower() for kw in SIGNAL_KEYWORDS]
-
-
-# ──────────────────────────────────────────────────────────────
-# Filter logic
-# ──────────────────────────────────────────────────────────────
-
 
 def is_high_signal(email: RawEmail, min_keyword_hits: int = 2) -> bool:
     """
@@ -81,7 +67,6 @@ def is_high_signal(email: RawEmail, min_keyword_hits: int = 2) -> bool:
     text = (email.subject + " " + email.body).lower()
     hits = sum(1 for kw in _LOWER_KEYWORDS if kw in text)
     return hits >= min_keyword_hits
-
 
 def filter_emails(
     emails: list[RawEmail],

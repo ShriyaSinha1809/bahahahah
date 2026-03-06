@@ -19,12 +19,6 @@ from dedup.claim_dedup import (
     deduplicate_claims,
 )
 
-
-# ──────────────────────────────────────────────────────────────
-# Name Utility Tests
-# ──────────────────────────────────────────────────────────────
-
-
 class TestNameUtils:
     def test_parse_name_parts_normal(self) -> None:
         first, last = parse_name_parts("Kenneth Lay")
@@ -57,12 +51,6 @@ class TestNameUtils:
     def test_name_similarity_different(self) -> None:
         sim = name_similarity("Kenneth Lay", "Jeff Skilling")
         assert sim < 0.5
-
-
-# ──────────────────────────────────────────────────────────────
-# Entity Resolver Tests
-# ──────────────────────────────────────────────────────────────
-
 
 class TestEntityResolver:
     def test_merge_by_email_address(self) -> None:
@@ -120,12 +108,6 @@ class TestEntityResolver:
         canonical, events = resolve_entities(entities)
         assert len(canonical) == 1
         assert len(events) >= 1
-
-
-# ──────────────────────────────────────────────────────────────
-# Claim Dedup Tests
-# ──────────────────────────────────────────────────────────────
-
 
 class TestClaimDedup:
     def test_merge_identical_claims(self) -> None:

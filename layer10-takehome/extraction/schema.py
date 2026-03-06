@@ -21,12 +21,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-
-# ──────────────────────────────────────────────────────────────
-# Enums
-# ──────────────────────────────────────────────────────────────
-
-
 class EntityType(str, Enum):
     PERSON = "Person"
     ORGANIZATION = "Organization"
@@ -34,7 +28,6 @@ class EntityType(str, Enum):
     TOPIC = "Topic"
     DOCUMENT = "Document"
     MEETING = "Meeting"
-
 
 class ClaimType(str, Enum):
     WORKS_AT = "WORKS_AT"
@@ -46,12 +39,6 @@ class ClaimType(str, Enum):
     SENT_TO = "SENT_TO"
     REFERENCES_DOC = "REFERENCES_DOC"
     SCHEDULED = "SCHEDULED"
-
-
-# ──────────────────────────────────────────────────────────────
-# Entity Model
-# ──────────────────────────────────────────────────────────────
-
 
 class ExtractedEntity(BaseModel):
     """
@@ -100,12 +87,6 @@ class ExtractedEntity(BaseModel):
                 result.append(cleaned)
         return result
 
-
-# ──────────────────────────────────────────────────────────────
-# Claim Model
-# ──────────────────────────────────────────────────────────────
-
-
 class ExtractedClaim(BaseModel):
     """
     A relationship/claim extracted from an email.
@@ -150,11 +131,7 @@ class ExtractedClaim(BaseModel):
     def clean_entity_ref(cls, v: str) -> str:
         return " ".join(v.split()).strip()
 
-
-# ──────────────────────────────────────────────────────────────
 # Extraction Result (top-level container)
-# ──────────────────────────────────────────────────────────────
-
 
 class ExtractionResult(BaseModel):
     """
@@ -191,11 +168,7 @@ class ExtractionResult(BaseModel):
         self.claims = valid_claims
         return self
 
-
-# ──────────────────────────────────────────────────────────────
 # Evidence Model (for storage layer)
-# ──────────────────────────────────────────────────────────────
-
 
 class EvidenceRecord(BaseModel):
     """
@@ -213,12 +186,6 @@ class EvidenceRecord(BaseModel):
     source_timestamp: datetime | None = None
     extraction_version: str = Field(..., description="Version tag of the extraction run")
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
-
-
-# ──────────────────────────────────────────────────────────────
-# Extraction Version Tag
-# ──────────────────────────────────────────────────────────────
-
 
 class ExtractionVersionInfo(BaseModel):
     """Metadata about an extraction run for reproducibility."""

@@ -31,11 +31,6 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
-# ──────────────────────────────────────────────────────────────
-# Data Model
-# ──────────────────────────────────────────────────────────────
-
-
 @dataclass
 class EmailThread:
     """A reconstructed email conversation thread."""
@@ -61,12 +56,6 @@ class EmailThread:
 
         if not self.subject and raw.subject:
             self.subject = raw.subject
-
-
-# ──────────────────────────────────────────────────────────────
-# Union-Find for thread merging
-# ──────────────────────────────────────────────────────────────
-
 
 class UnionFind:
     """Disjoint-set with path compression and union by rank."""
@@ -96,29 +85,17 @@ class UnionFind:
             self._rank[ra] += 1
         return ra
 
-
-# ──────────────────────────────────────────────────────────────
-# Subject Normalization
-# ──────────────────────────────────────────────────────────────
-
 _RE_PREFIX = re.compile(r"^(?:(?:re|fwd?|fw)\s*:\s*)+", re.IGNORECASE)
-
 
 def normalize_subject(subject: str) -> str:
     """Strip Re:/Fwd: prefixes and normalize whitespace."""
     cleaned = _RE_PREFIX.sub("", subject).strip()
     return " ".join(cleaned.split()).lower()
 
-
-# ──────────────────────────────────────────────────────────────
-# Thread Builder
-# ──────────────────────────────────────────────────────────────
-
 # Time window for subject-based fallback matching
 _SUBJECT_WINDOW = timedelta(days=7)
 # Minimum participant overlap ratio for subject-based matching
 _MIN_PARTICIPANT_OVERLAP = 0.3
-
 
 class ThreadBuilder:
     """
@@ -237,23 +214,11 @@ class ThreadBuilder:
                         if self._uf.find(mid_a) != self._uf.find(mid_b):
                             self._uf.union(mid_a, mid_b)
 
-
-# ──────────────────────────────────────────────────────────────
-# Convenience Functions
-# ──────────────────────────────────────────────────────────────
-
-
 def build_threads(emails: Iterable[RawEmail]) -> list[EmailThread]:
     """One-shot thread builder for a collection of emails."""
     builder = ThreadBuilder()
     builder.add_all(emails)
     return builder.build()
-
-
-# ──────────────────────────────────────────────────────────────
-# CLI Entrypoint
-# ──────────────────────────────────────────────────────────────
-
 
 def main() -> None:
     """Build threads from parsed emails (CLI entrypoint)."""
@@ -274,7 +239,6 @@ def main() -> None:
         max_thread_size=max(sizes) if sizes else 0,
         avg_thread_size=round(sum(sizes) / len(sizes), 1) if sizes else 0,
     )
-
 
 if __name__ == "__main__":
     from config import get_settings

@@ -22,12 +22,6 @@ from extraction.validator import (
 )
 from extraction.prompts import get_prompt_hash, get_version_tag, build_user_prompt
 
-
-# ──────────────────────────────────────────────────────────────
-# Schema Tests
-# ──────────────────────────────────────────────────────────────
-
-
 class TestExtractionSchema:
     def test_entity_creation(self) -> None:
         entity = ExtractedEntity(
@@ -102,17 +96,10 @@ class TestExtractionSchema:
         assert len(result.claims) == 1
         assert result.claims[0].subject == "Alice"
 
-
-# ──────────────────────────────────────────────────────────────
-# Validator Tests
-# ──────────────────────────────────────────────────────────────
-
-
 SAMPLE_EMAIL_BODY = (
     "I am pleased to announce that Jeff Skilling will be joining "
     "our executive team as President and COO."
 )
-
 
 class TestValidator:
     def test_parse_valid_json(self) -> None:
@@ -187,12 +174,6 @@ class TestValidator:
         })
         result = validate_extraction(raw, SAMPLE_EMAIL_BODY, "test001")
         assert len(result.extraction.claims) == 0
-
-
-# ──────────────────────────────────────────────────────────────
-# Prompt Tests
-# ──────────────────────────────────────────────────────────────
-
 
 class TestPrompts:
     def test_prompt_hash_deterministic(self) -> None:

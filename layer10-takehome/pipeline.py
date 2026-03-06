@@ -42,12 +42,6 @@ from logging_config import get_logger, setup_logging
 
 logger = get_logger(__name__)
 
-
-# ──────────────────────────────────────────────────────────────
-# Stage 1: Ingest raw emails into database
-# ──────────────────────────────────────────────────────────────
-
-
 async def run_ingestion() -> int:
     """
     Parse Enron emails, deduplicate, and store in raw_emails table.
@@ -57,24 +51,19 @@ async def run_ingestion() -> int:
     settings = get_settings()
     logger.info("ingestion_start", data_dir=str(settings.enron_path))
 
-    # Parse
     raw_emails = list(iter_maildir(settings.enron_path, settings.enron_user_list))
     logger.info("parsing_complete", total_parsed=len(raw_emails))
 
-    # Signal filter — drop low-value folders + non-Enron emails (cheap, pre-dedup)
     filtered_emails, filter_stats = filter_emails(raw_emails)
     logger.info("signal_filter_complete", **filter_stats)
 
-    # Dedup
     dedup_result = deduplicate_emails(filtered_emails)
     unique_emails = dedup_result.unique_emails
     logger.info("dedup_complete", unique=len(unique_emails), stats=dedup_result.stats)
 
-    # Build threads (for later context in extraction)
     threads = build_threads(unique_emails)
     logger.info("threads_built", thread_count=len(threads))
 
-    # Store raw emails
     batch_size = 500
     stored = 0
 
@@ -139,12 +128,6 @@ async def run_ingestion() -> int:
     logger.info("ingestion_complete", stored=stored)
     return stored
 
-
-# ──────────────────────────────────────────────────────────────
-# Stage 2: LLM extraction
-# ──────────────────────────────────────────────────────────────
-
-
 async def run_extraction(batch_size: int | None = None) -> dict[str, Any]:
     """
     Run LLM extraction on unprocessed emails.
@@ -193,7 +176,6 @@ async def run_extraction(batch_size: int | None = None) -> dict[str, Any]:
                     session, em.message_id, version_tag
                 )
 
-        # Extract
         results = await extractor.extract_batch(emails)
 
         # Store results
@@ -280,7 +262,6 @@ async def run_extraction(batch_size: int | None = None) -> dict[str, Any]:
     stats = extractor.stats.as_dict()
     logger.info("extraction_complete", **stats)
 
-    # Stage 2b: Store entity embeddings for semantic search
     logger.info("pipeline_stage", stage="embeddings")
     try:
         async with get_session() as session:
@@ -292,12 +273,6 @@ async def run_extraction(batch_size: int | None = None) -> dict[str, Any]:
         logger.warning("embeddings_skipped", reason=str(e))
 
     return stats
-
-
-# ──────────────────────────────────────────────────────────────
-# Stage 2c: Claim deduplication
-# ──────────────────────────────────────────────────────────────
-
 
 async def run_claim_dedup() -> dict[str, int]:
     """
@@ -395,12 +370,6 @@ async def run_claim_dedup() -> dict[str, int]:
     logger.info("claim_dedup_complete", **stats)
     return stats
 
-
-# ──────────────────────────────────────────────────────────────
-# Stage 3: Entity canonicalization
-# ──────────────────────────────────────────────────────────────
-
-
 async def run_canonicalization() -> dict[str, int]:
     """
     Run entity resolution on all stored entities.
@@ -420,7 +389,6 @@ async def run_canonicalization() -> dict[str, int]:
     if not entities:
         return {"canonical": 0, "merged": 0}
 
-    # Resolve
     canonical, merge_events = resolve_entities(entities)
 
     # Persist merge events
@@ -438,12 +406,6 @@ async def run_canonicalization() -> dict[str, int]:
     logger.info("canonicalization_complete", **stats)
     return stats
 
-
-# ──────────────────────────────────────────────────────────────
-# Full Pipeline
-# ──────────────────────────────────────────────────────────────
-
-
 async def run_full_pipeline() -> dict[str, Any]:
     """
     Run the complete pipeline end-to-end.
@@ -455,19 +417,15 @@ async def run_full_pipeline() -> dict[str, Any]:
 
     results: dict[str, Any] = {}
 
-    # Stage 1
     logger.info("pipeline_stage", stage="ingestion")
     results["ingestion_count"] = await run_ingestion()
 
-    # Stage 2
     logger.info("pipeline_stage", stage="extraction")
     results["extraction_stats"] = await run_extraction()
 
-    # Stage 3
     logger.info("pipeline_stage", stage="canonicalization")
     results["canonicalization_stats"] = await run_canonicalization()
 
-    # Stage 4
     logger.info("pipeline_stage", stage="claim_dedup")
     results["claim_dedup_stats"] = await run_claim_dedup()
 
@@ -476,12 +434,10 @@ async def run_full_pipeline() -> dict[str, Any]:
     logger.info("full_pipeline_complete", results=results)
     return results
 
-
 def main() -> None:
     """CLI entrypoint for the full pipeline."""
     setup_logging()
     asyncio.run(run_full_pipeline())
-
 
 if __name__ == "__main__":
     main()

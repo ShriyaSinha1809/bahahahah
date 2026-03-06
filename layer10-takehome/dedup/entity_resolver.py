@@ -32,12 +32,6 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
-
-# ──────────────────────────────────────────────────────────────
-# Data Models
-# ──────────────────────────────────────────────────────────────
-
-
 @dataclass
 class MergeEvent:
     """Audit record for a single entity merge."""
@@ -48,7 +42,6 @@ class MergeEvent:
     confidence: float
     timestamp: datetime = field(default_factory=datetime.utcnow)
     reversed: bool = False
-
 
 @dataclass
 class CanonicalEntity:
@@ -92,13 +85,9 @@ class CanonicalEntity:
         self.merge_history.append(event)
         return event
 
-
-# ──────────────────────────────────────────────────────────────
 # Name Parsing & Normalization
-# ──────────────────────────────────────────────────────────────
 
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
-
 
 def extract_email_addresses(aliases: list[str]) -> set[str]:
     """Extract email addresses from a list of aliases."""
@@ -108,7 +97,6 @@ def extract_email_addresses(aliases: list[str]) -> set[str]:
         if match:
             emails.add(match.group())
     return emails
-
 
 def parse_name_parts(name: str) -> tuple[str, str]:
     """
@@ -133,7 +121,6 @@ def parse_name_parts(name: str) -> tuple[str, str]:
     elif len(parts) == 1:
         return parts[0], ""
     return "", ""
-
 
 def name_similarity(name_a: str, name_b: str) -> float:
     """
@@ -168,12 +155,6 @@ def name_similarity(name_a: str, name_b: str) -> float:
         first_sim = 0.0
 
     return 0.4 * full_sim + 0.3 * last_sim + 0.3 * first_sim
-
-
-# ──────────────────────────────────────────────────────────────
-# Entity Resolver
-# ──────────────────────────────────────────────────────────────
-
 
 class EntityResolver:
     """
@@ -344,12 +325,6 @@ class EntityResolver:
                 )
                 self._merge_events.append(event)
                 del self._entities[oid]
-
-
-# ──────────────────────────────────────────────────────────────
-# Convenience
-# ──────────────────────────────────────────────────────────────
-
 
 def resolve_entities(
     entities: list[dict[str, Any]],

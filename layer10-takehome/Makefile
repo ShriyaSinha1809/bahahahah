@@ -1,7 +1,11 @@
-.PHONY: db db-down migrate ingest extract serve test lint clean download export examples
+.PHONY: db db-down migrate db-local db-local-down migrate-local \
+        ingest extract serve test lint clean download export examples
 
-# ─── Database ──────────────────────────────────────────────
+# ─── Database — Docker (default) ───────────────────────────
+# Requires: docker + docker compose
 db:
+	@command -v docker >/dev/null 2>&1 || \
+		{ echo "ERROR: 'docker' not found. Install it (see README) or use 'make db-local' instead."; exit 1; }
 	docker compose up -d postgres
 	@echo "Waiting for Postgres to be ready..."
 	@until docker compose exec postgres pg_isready -U layer10 2>/dev/null; do sleep 1; done
@@ -12,7 +16,7 @@ db:
 db-down:
 	docker compose down -v
 
-# ─── Schema Migration ──────────────────────────────────────
+# ─── Schema Migration — Docker ─────────────────────────────
 # Applies storage/schema.sql to the running container.
 # Safe to re-run (all statements use IF NOT EXISTS).
 migrate:
@@ -20,6 +24,33 @@ migrate:
 		-U layer10 -d layer10 \
 		-v ON_ERROR_STOP=0 \
 		< storage/schema.sql
+	@echo "Migration complete."
+
+# ─── Database — Local Postgres (no Docker) ─────────────────
+# Use this when Docker is not available.
+# Requires: postgresql + postgresql-contrib (with pgvector extension)
+# Arch:   sudo pacman -S postgresql pgvector
+# Ubuntu: sudo apt install postgresql postgresql-contrib
+#         then install pgvector: https://github.com/pgvector/pgvector
+db-local:
+	@command -v psql >/dev/null 2>&1 || \
+		{ echo "ERROR: 'psql' not found. Install postgresql first."; exit 1; }
+	@echo "Creating role and database if they do not exist..."
+	@sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='layer10'" | grep -q 1 || \
+		sudo -u postgres psql -c "CREATE ROLE layer10 LOGIN PASSWORD 'layer10pass';"
+	@sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='layer10'" | grep -q 1 || \
+		sudo -u postgres psql -c "CREATE DATABASE layer10 OWNER layer10;"
+	$(MAKE) migrate-local
+	@echo "Local Postgres setup complete."
+
+db-local-down:
+	@sudo -u postgres psql -c "DROP DATABASE IF EXISTS layer10;"
+	@sudo -u postgres psql -c "DROP ROLE IF EXISTS layer10;"
+	@echo "Local database and role removed."
+
+# ─── Schema Migration — Local Postgres ─────────────────────
+migrate-local:
+	psql -U layer10 -d layer10 -v ON_ERROR_STOP=0 < storage/schema.sql
 	@echo "Migration complete."
 
 # ─── Data Download ─────────────────────────────────────────

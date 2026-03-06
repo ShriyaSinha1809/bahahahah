@@ -20,12 +20,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-
-# ──────────────────────────────────────────────────────────────
-# Response Models
-# ──────────────────────────────────────────────────────────────
-
-
 class EvidenceSnippet(BaseModel):
     """A single evidence excerpt with source metadata."""
 
@@ -35,7 +29,6 @@ class EvidenceSnippet(BaseModel):
     sender: str = ""
     subject: str = ""
     extraction_version: str = ""
-
 
 class ClaimWithEvidence(BaseModel):
     """A claim with all its supporting evidence."""
@@ -51,7 +44,6 @@ class ClaimWithEvidence(BaseModel):
     is_current: bool = True
     evidence: list[EvidenceSnippet] = Field(default_factory=list)
 
-
 class EntitySummary(BaseModel):
     """Summary of an entity in the context pack."""
 
@@ -61,14 +53,12 @@ class EntitySummary(BaseModel):
     aliases: list[str] = Field(default_factory=list)
     properties: dict[str, Any] = Field(default_factory=dict)
 
-
 class ConflictPair(BaseModel):
     """Two claims that conflict with each other."""
 
     claim_a: ClaimWithEvidence
     claim_b: ClaimWithEvidence
     conflict_reason: str
-
 
 class ContextPack(BaseModel):
     """
@@ -83,12 +73,6 @@ class ContextPack(BaseModel):
     conflicts: list[ConflictPair] = Field(default_factory=list)
     total_evidence_count: int = 0
     applied_user_filter: str | None = None  # set when user_id permission filter is active
-
-
-# ──────────────────────────────────────────────────────────────
-# Assembly
-# ──────────────────────────────────────────────────────────────
-
 
 def assemble_context_pack(
     question: str,
@@ -162,7 +146,6 @@ def assemble_context_pack(
         total_evidence_count=total_evidence,
     )
 
-
 def _detect_conflicts(claims: list[ClaimWithEvidence]) -> list[ConflictPair]:
     """
     Detect conflicting claims.
@@ -202,7 +185,6 @@ def _detect_conflicts(claims: list[ClaimWithEvidence]) -> list[ConflictPair]:
                         )
 
     return conflicts
-
 
 def _temporal_overlap(a: ClaimWithEvidence, b: ClaimWithEvidence) -> bool:
     """Check if two claims have overlapping validity windows."""

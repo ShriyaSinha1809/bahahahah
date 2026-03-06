@@ -30,13 +30,8 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
-# ──────────────────────────────────────────────────────────────
-# Engine & Session Factory
-# ──────────────────────────────────────────────────────────────
-
 _engine = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
-
 
 def _get_engine():
     """Lazy-initialize the async engine."""
@@ -51,7 +46,6 @@ def _get_engine():
         )
     return _engine
 
-
 def _get_session_factory() -> async_sessionmaker[AsyncSession]:
     """Lazy-initialize the session factory."""
     global _session_factory
@@ -62,7 +56,6 @@ def _get_session_factory() -> async_sessionmaker[AsyncSession]:
             expire_on_commit=False,
         )
     return _session_factory
-
 
 @asynccontextmanager
 async def get_session() -> AsyncIterator[AsyncSession]:
@@ -82,7 +75,6 @@ async def get_session() -> AsyncIterator[AsyncSession]:
             await session.rollback()
             raise
 
-
 async def init_db() -> None:
     """Verify connectivity and log pool status."""
     engine = _get_engine()
@@ -90,7 +82,6 @@ async def init_db() -> None:
         result = await conn.execute(text("SELECT 1"))
         assert result.scalar() == 1
     logger.info("database_connected", url=get_settings().database_url.split("@")[-1])
-
 
 async def close_db() -> None:
     """Dispose the engine and connection pool."""
@@ -101,11 +92,7 @@ async def close_db() -> None:
         _session_factory = None
         logger.info("database_closed")
 
-
-# ──────────────────────────────────────────────────────────────
 # Repository: Raw Emails
-# ──────────────────────────────────────────────────────────────
-
 
 class RawEmailRepository:
     """CRUD operations for the raw_emails table."""
@@ -192,11 +179,7 @@ class RawEmailRepository:
         result = await session.execute(text("SELECT COUNT(*) FROM raw_emails"))
         return result.scalar() or 0
 
-
-# ──────────────────────────────────────────────────────────────
 # Repository: Entities
-# ──────────────────────────────────────────────────────────────
-
 
 class EntityRepository:
     """CRUD operations for the entities table."""
@@ -323,11 +306,7 @@ class EntityRepository:
             )
         return [dict(row._mapping) for row in result.fetchall()]
 
-
-# ──────────────────────────────────────────────────────────────
 # Repository: Claims
-# ──────────────────────────────────────────────────────────────
-
 
 class ClaimRepository:
     """CRUD operations for the claims table."""
@@ -489,11 +468,7 @@ class ClaimRepository:
         row = result.fetchone()
         return dict(row._mapping) if row else None
 
-
-# ──────────────────────────────────────────────────────────────
 # Repository: Evidence
-# ──────────────────────────────────────────────────────────────
-
 
 class EvidenceRepository:
     """CRUD operations for the evidence table."""
@@ -585,11 +560,7 @@ class EvidenceRepository:
                 evidence_map[cid].append(d)
         return evidence_map
 
-
-# ──────────────────────────────────────────────────────────────
 # Repository: Processing Log
-# ──────────────────────────────────────────────────────────────
-
 
 class ProcessingLogRepository:
     """Track extraction processing for idempotency."""
@@ -663,11 +634,7 @@ class ProcessingLogRepository:
             },
         )
 
-
-# ──────────────────────────────────────────────────────────────
 # Repository: Merge Events
-# ──────────────────────────────────────────────────────────────
-
 
 class MergeEventRepository:
     """Audit trail for entity/claim merges."""

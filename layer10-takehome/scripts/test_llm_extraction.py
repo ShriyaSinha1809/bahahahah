@@ -16,8 +16,6 @@ from extraction.prompts import SYSTEM_PROMPT, build_user_prompt, FEW_SHOT_EXAMPL
 from extraction.extractor import LLMClient
 from config import get_settings
 
-# ── Sample Enron-style emails ─────────────────────────────────
-
 EMAILS = [
     EmailForExtraction(
         message_id="test-001@enron.com",
@@ -68,7 +66,6 @@ Ken Lay
 Chairman & CEO, Enron Corporation""",
     ),
 ]
-
 
 async def test_extraction():
     settings = get_settings()
@@ -123,7 +120,6 @@ async def test_extraction():
     for k, v in stats.items():
         print(f"  {k:<30} {v}")
     print(f"{'='*60}\n")
-
 
 if __name__ == "__main__":
     asyncio.run(test_extraction())

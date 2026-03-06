@@ -21,7 +21,6 @@ from pathlib import Path
 
 from sqlalchemy import text
 
-# Allow running from the project root
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from storage.db import (
@@ -36,13 +35,11 @@ from logging_config import get_logger, setup_logging
 
 logger = get_logger(__name__)
 
-
 def _serialize(obj):
     """JSON serializer that handles datetime and UUID objects."""
     if isinstance(obj, datetime):
         return obj.isoformat()
     raise TypeError(f"Type {type(obj)} not serializable")
-
 
 async def export_graph(
     min_confidence: float = 0.0,
@@ -55,7 +52,6 @@ async def export_graph(
     logger.info("export_start", min_confidence=min_confidence)
 
     async with get_session() as session:
-        # ── Entities (nodes) ──────────────────────────────────────────────
         entities = await EntityRepository.list_all(session, limit=100_000)
         logger.info("entities_loaded", count=len(entities))
 
@@ -74,7 +70,6 @@ async def export_graph(
             nodes.append(node)
             entity_index[eid] = node
 
-        # ── Claims (edges) ────────────────────────────────────────────────
         result = await session.execute(
             text("""
                 SELECT c.*,
@@ -91,7 +86,6 @@ async def export_graph(
         claim_rows = [dict(r._mapping) for r in result.fetchall()]
         logger.info("claims_loaded", count=len(claim_rows))
 
-        # ── Evidence (per claim) ───────────────────────────────────────────
         evidence_map: dict[str, list[dict]] = {}
         for claim in claim_rows:
             cid = str(claim["id"])
@@ -130,7 +124,6 @@ async def export_graph(
 
     await close_db()
 
-    # ── Write graph_export.json ────────────────────────────────────────────
     graph = {
         "metadata": {
             "exported_at": datetime.utcnow().isoformat(),
@@ -150,7 +143,6 @@ async def export_graph(
     )
     logger.info("graph_exported", path=str(graph_path), nodes=len(nodes), edges=len(edges))
 
-    # ── Write graph_stats.json ─────────────────────────────────────────────
     type_counts: dict[str, int] = {}
     for n in nodes:
         t = n["entity_type"]
@@ -189,7 +181,6 @@ async def export_graph(
     print(f"   Output: {graph_path}")
     print(f"   Stats:  {stats_path}")
 
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export memory graph to JSON")
     parser.add_argument("--min-confidence", type=float, default=0.0,
@@ -203,7 +194,6 @@ def main() -> None:
         min_confidence=args.min_confidence,
         out_dir=args.out,
     ))
-
 
 if __name__ == "__main__":
     main()

@@ -33,17 +33,10 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
-
-# ──────────────────────────────────────────────────────────────
-# Dedup Event Model (audit trail)
-# ──────────────────────────────────────────────────────────────
-
-
 class DedupReason(str, Enum):
     EXACT_DUPLICATE = "exact_duplicate"
     NEAR_DUPLICATE = "near_duplicate"
     QUOTE_STRIPPED = "quote_stripped"
-
 
 @dataclass(frozen=True, slots=True)
 class DedupEvent:
@@ -54,11 +47,6 @@ class DedupEvent:
     reason: DedupReason
     similarity: float
     timestamp: datetime = field(default_factory=datetime.utcnow)
-
-
-# ──────────────────────────────────────────────────────────────
-# Quote / Forward Stripping
-# ──────────────────────────────────────────────────────────────
 
 _QUOTE_PATTERNS = [
     re.compile(r"^>+\s?.*$", re.MULTILINE),  # > quoted lines
@@ -76,7 +64,6 @@ _QUOTE_PATTERNS = [
     ),
 ]
 
-
 def strip_quotes(body: str) -> str:
     """
     Remove quoted/forwarded content from an email body.
@@ -91,13 +78,7 @@ def strip_quotes(body: str) -> str:
     stripped = re.sub(r"\n{3,}", "\n\n", stripped).strip()
     return stripped
 
-
-# ──────────────────────────────────────────────────────────────
-# MinHash Helpers
-# ──────────────────────────────────────────────────────────────
-
 _NUM_PERM = 128  # MinHash permutations — good balance of speed vs accuracy
-
 
 def _text_to_shingles(text: str, k: int = 5) -> set[str]:
     """Convert text into a set of character k-shingles."""
@@ -106,19 +87,12 @@ def _text_to_shingles(text: str, k: int = 5) -> set[str]:
         return {text}
     return {text[i : i + k] for i in range(len(text) - k + 1)}
 
-
 def _make_minhash(text: str) -> MinHash:
     """Create a MinHash signature for a text."""
     mh = MinHash(num_perm=_NUM_PERM)
     for shingle in _text_to_shingles(text):
         mh.update(shingle.encode("utf-8"))
     return mh
-
-
-# ──────────────────────────────────────────────────────────────
-# Deduplicator
-# ──────────────────────────────────────────────────────────────
-
 
 @dataclass
 class DedupResult:
@@ -127,7 +101,6 @@ class DedupResult:
     unique_emails: list[RawEmail]
     events: list[DedupEvent]
     stats: dict[str, int]
-
 
 class EmailDeduplicator:
     """
@@ -260,12 +233,6 @@ class EmailDeduplicator:
                     )
 
         return unique, events
-
-
-# ──────────────────────────────────────────────────────────────
-# Convenience
-# ──────────────────────────────────────────────────────────────
-
 
 def deduplicate_emails(
     emails: Iterable[RawEmail],

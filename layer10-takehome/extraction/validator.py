@@ -35,12 +35,6 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
-
-# ──────────────────────────────────────────────────────────────
-# Validation Result Model
-# ──────────────────────────────────────────────────────────────
-
-
 @dataclass
 class ValidationEvent:
     """Record of a validation action (drop, repair, or pass)."""
@@ -49,7 +43,6 @@ class ValidationEvent:
     target: str  # "claim" or "entity"
     reason: str
     details: dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class ValidationResult:
@@ -67,13 +60,7 @@ class ValidationResult:
     def repaired_count(self) -> int:
         return sum(1 for e in self.events if e.action == "repaired")
 
-
-# ──────────────────────────────────────────────────────────────
-# JSON Parsing
-# ──────────────────────────────────────────────────────────────
-
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)```")
-
 
 def _extract_json(raw: str) -> str:
     """
@@ -99,7 +86,6 @@ def _extract_json(raw: str) -> str:
 
     return raw
 
-
 def parse_llm_json(raw_response: str) -> dict[str, Any] | None:
     """
     Parse JSON from LLM response with error handling.
@@ -112,12 +98,6 @@ def parse_llm_json(raw_response: str) -> dict[str, Any] | None:
     except json.JSONDecodeError as exc:
         logger.warning("json_parse_failed", error=str(exc), preview=json_str[:200])
         return None
-
-
-# ──────────────────────────────────────────────────────────────
-# Evidence Verification
-# ──────────────────────────────────────────────────────────────
-
 
 def _find_excerpt_in_body(excerpt: str, body: str) -> tuple[bool, int | None, int | None]:
     """
@@ -145,12 +125,6 @@ def _find_excerpt_in_body(excerpt: str, body: str) -> tuple[bool, int | None, in
 
     return False, None, None
 
-
-# ──────────────────────────────────────────────────────────────
-# Entity Name Normalization
-# ──────────────────────────────────────────────────────────────
-
-
 def _normalize_person_name(name: str) -> str:
     """
     Normalize a person's name to Title Case.
@@ -166,18 +140,11 @@ def _normalize_person_name(name: str) -> str:
 
     return " ".join(name.title().split())
 
-
 def _normalize_entity_name(name: str, entity_type: str) -> str:
     """Normalize entity name based on type."""
     if entity_type == "Person":
         return _normalize_person_name(name)
     return " ".join(name.strip().split())
-
-
-# ──────────────────────────────────────────────────────────────
-# Validator
-# ──────────────────────────────────────────────────────────────
-
 
 class ExtractionValidator:
     """
@@ -381,12 +348,6 @@ class ExtractionValidator:
             return None
 
         return ExtractionResult(entities=entities, claims=claims)
-
-
-# ──────────────────────────────────────────────────────────────
-# Convenience
-# ──────────────────────────────────────────────────────────────
-
 
 def validate_extraction(
     raw_response: str,

@@ -52,12 +52,6 @@ from storage.db import (
 
 logger = get_logger(__name__)
 
-
-# ──────────────────────────────────────────────────────────────
-# App Lifecycle
-# ──────────────────────────────────────────────────────────────
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize and teardown resources."""
@@ -67,7 +61,6 @@ async def lifespan(app: FastAPI):
     yield
     await close_db()
     logger.info("api_stopped")
-
 
 app = FastAPI(
     title="Layer10 Memory Graph API",
@@ -84,12 +77,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# ──────────────────────────────────────────────────────────────
-# Response Models
-# ──────────────────────────────────────────────────────────────
-
-
 class EntityDetail(BaseModel):
     """Full entity details with claims summary."""
 
@@ -100,13 +87,11 @@ class EntityDetail(BaseModel):
     properties: dict[str, Any] = Field(default_factory=dict)
     claim_count: int = 0
 
-
 class GraphData(BaseModel):
     """Graph visualization data."""
 
     nodes: list[dict[str, Any]] = Field(default_factory=list)
     edges: list[dict[str, Any]] = Field(default_factory=list)
-
 
 class StatsResponse(BaseModel):
     """Pipeline statistics."""
@@ -115,7 +100,6 @@ class StatsResponse(BaseModel):
     total_entities: int = 0
     total_claims: int = 0
     total_evidence: int = 0
-
 
 class MergeEventRecord(BaseModel):
     """A single merge event from the audit trail."""
@@ -130,34 +114,24 @@ class MergeEventRecord(BaseModel):
     reversed_at: Any = None
     reversed_reason: str | None = None
 
-
 class MetricsResponse(BaseModel):
     """Detailed observability metrics for the pipeline."""
 
-    # Volume
     total_emails: int = 0
     total_entities: int = 0
     total_claims: int = 0
     total_evidence: int = 0
     total_merges: int = 0
-    # Quality
     pending_review_claims: int = 0
     failed_extractions: int = 0
     completed_extractions: int = 0
     avg_confidence: float = 0.0
     low_confidence_claims: int = 0   # confidence < 0.5
     high_confidence_claims: int = 0  # confidence >= 0.8
-    # Temporal
     historical_claims: int = 0       # is_current = false
     current_claims: int = 0
     # Merge health
     reversed_merges: int = 0
-
-
-# ──────────────────────────────────────────────────────────────
-# Endpoints
-# ──────────────────────────────────────────────────────────────
-
 
 @app.get("/api/query", response_model=ContextPack)
 async def query(
@@ -204,7 +178,6 @@ async def query(
 
         return pack
 
-
 def _filter_pack_by_user(pack: ContextPack, user_id: str) -> ContextPack:
     """
     Remove evidence snippets whose source the user cannot access.
@@ -227,7 +200,6 @@ def _filter_pack_by_user(pack: ContextPack, user_id: str) -> ContextPack:
         applied_user_filter=user_id,
     )
 
-
 @app.get("/api/entity/{entity_id}", response_model=EntityDetail)
 async def get_entity(entity_id: str) -> EntityDetail:
     """Get full details for a specific entity."""
@@ -246,7 +218,6 @@ async def get_entity(entity_id: str) -> EntityDetail:
             properties=entity.get("properties", {}),
             claim_count=len(claims),
         )
-
 
 @app.get("/api/entity/{entity_id}/claims", response_model=list[ClaimWithEvidence])
 async def get_entity_claims(
@@ -302,7 +273,6 @@ async def get_entity_claims(
 
         return result
 
-
 @app.get("/api/claim/{claim_id}/evidence", response_model=list[EvidenceSnippet])
 async def get_claim_evidence(claim_id: str) -> list[EvidenceSnippet]:
     """Get all evidence supporting a specific claim."""
@@ -324,7 +294,6 @@ async def get_claim_evidence(claim_id: str) -> list[EvidenceSnippet]:
             )
             for ev in evidence_records
         ]
-
 
 @app.get("/api/entity/{entity_id}/merges", response_model=list[MergeEventRecord])
 async def get_entity_merges(entity_id: str) -> list[MergeEventRecord]:
@@ -355,7 +324,6 @@ async def get_entity_merges(entity_id: str) -> list[MergeEventRecord]:
             )
             for ev in events
         ]
-
 
 @app.get("/api/review-queue", response_model=list[ClaimWithEvidence])
 async def get_review_queue(
@@ -403,7 +371,6 @@ async def get_review_queue(
                 )
             )
         return result
-
 
 @app.get("/api/graph", response_model=GraphData)
 async def get_graph(
@@ -476,7 +443,6 @@ async def get_graph(
 
         return GraphData(nodes=nodes, edges=edges)
 
-
 @app.get("/api/stats", response_model=StatsResponse)
 async def get_stats() -> StatsResponse:
     """Get pipeline statistics."""
@@ -492,7 +458,6 @@ async def get_stats() -> StatsResponse:
             total_claims=claims.scalar() or 0,
             total_evidence=evidence.scalar() or 0,
         )
-
 
 @app.get("/api/metrics", response_model=MetricsResponse)
 async def get_metrics() -> MetricsResponse:
@@ -540,17 +505,12 @@ async def get_metrics() -> MetricsResponse:
             reversed_merges=r.get("reversed_merges") or 0,
         )
 
-
 @app.get("/health")
 async def health() -> dict[str, str]:
     """Health check endpoint."""
     return {"status": "ok"}
 
-
-# ──────────────────────────────────────────────────────────────
 # New: Timeline + Merge Reversal
-# ──────────────────────────────────────────────────────────────
-
 
 class TimelineEntry(BaseModel):
     """A single claim entry on the entity timeline."""
@@ -564,7 +524,6 @@ class TimelineEntry(BaseModel):
     valid_to: Any = None
     is_current: bool = True
     evidence_count: int = 0
-
 
 @app.get("/api/timeline", response_model=list[TimelineEntry])
 async def get_timeline(
@@ -615,9 +574,7 @@ async def get_timeline(
             )
         return entries
 
-
 from fastapi import Body  # noqa: E402 — import at usage point to avoid top-of-file clutter
-
 
 @app.post("/api/merge/{event_id}/reverse")
 async def reverse_merge_event(

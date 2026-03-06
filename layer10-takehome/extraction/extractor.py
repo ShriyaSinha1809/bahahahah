@@ -46,12 +46,6 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
-
-# ──────────────────────────────────────────────────────────────
-# Extraction Statistics
-# ──────────────────────────────────────────────────────────────
-
-
 @dataclass
 class ExtractionStats:
     """Tracks metrics for an extraction run."""
@@ -86,12 +80,6 @@ class ExtractionStats:
             "total_evidence_dropped": self.total_evidence_dropped,
             "elapsed_seconds": round(self.elapsed_seconds, 1),
         }
-
-
-# ──────────────────────────────────────────────────────────────
-# LLM Client Wrapper
-# ──────────────────────────────────────────────────────────────
-
 
 class LLMClient:
     """
@@ -169,11 +157,7 @@ class LLMClient:
         tokens = response.usage.total_tokens if response.usage else 0
         return content, tokens
 
-
-# ──────────────────────────────────────────────────────────────
 # Email Data Contract (input to extractor)
-# ──────────────────────────────────────────────────────────────
-
 
 @dataclass
 class EmailForExtraction:
@@ -186,12 +170,6 @@ class EmailForExtraction:
     subject: str
     body: str
     thread_context: str | None = None
-
-
-# ──────────────────────────────────────────────────────────────
-# Core Extractor
-# ──────────────────────────────────────────────────────────────
-
 
 class Extractor:
     """
@@ -269,7 +247,6 @@ class Extractor:
                 raw_response, tokens = await self._client.extract(messages)
                 self._stats.total_tokens_used += tokens
 
-                # Validate
                 result = validate_extraction(
                     raw_response=raw_response,
                     email_body=email.body,
@@ -359,12 +336,6 @@ class Extractor:
 
         logger.info("batch_extraction_complete", stats=self._stats.as_dict())
         return results
-
-
-# ──────────────────────────────────────────────────────────────
-# CLI Entrypoint
-# ──────────────────────────────────────────────────────────────
-
 
 async def run_extraction_pipeline() -> None:
     """
@@ -470,14 +441,12 @@ async def run_extraction_pipeline() -> None:
 
     logger.info("extraction_pipeline_complete", stats=extractor.stats.as_dict())
 
-
 def main() -> None:
     """CLI entrypoint for extraction."""
     from logging_config import setup_logging
 
     setup_logging()
     asyncio.run(run_extraction_pipeline())
-
 
 if __name__ == "__main__":
     main()

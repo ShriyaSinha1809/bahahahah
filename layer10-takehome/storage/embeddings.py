@@ -26,12 +26,7 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
-# ──────────────────────────────────────────────────────────────
-# Model Management (lazy-loaded singleton)
-# ──────────────────────────────────────────────────────────────
-
 _model = None
-
 
 def _get_model():
     """Lazy-load the sentence transformer model."""
@@ -43,12 +38,6 @@ def _get_model():
         _model = SentenceTransformer(settings.embedding_model)
         logger.info("embedding_model_loaded", model=settings.embedding_model)
     return _model
-
-
-# ──────────────────────────────────────────────────────────────
-# Text Representation Builders
-# ──────────────────────────────────────────────────────────────
-
 
 def entity_to_text(entity: dict[str, Any]) -> str:
     """
@@ -73,7 +62,6 @@ def entity_to_text(entity: dict[str, Any]) -> str:
 
     return " ".join(parts)
 
-
 def claim_to_text(claim: dict[str, Any]) -> str:
     """Build a text representation of a claim for embedding."""
     parts = [
@@ -87,12 +75,6 @@ def claim_to_text(claim: dict[str, Any]) -> str:
             parts.append(f"{key}: {value}")
     return " ".join(parts)
 
-
-# ──────────────────────────────────────────────────────────────
-# Embedding Generation
-# ──────────────────────────────────────────────────────────────
-
-
 def generate_embeddings(texts: list[str]) -> np.ndarray:
     """
     Generate embeddings for a list of texts.
@@ -102,18 +84,11 @@ def generate_embeddings(texts: list[str]) -> np.ndarray:
     model = _get_model()
     return model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
 
-
 def generate_embedding(text: str) -> list[float]:
     """Generate a single embedding vector."""
     model = _get_model()
     vec = model.encode([text], normalize_embeddings=True, show_progress_bar=False)
     return vec[0].tolist()
-
-
-# ──────────────────────────────────────────────────────────────
-# Database Storage
-# ──────────────────────────────────────────────────────────────
-
 
 async def store_entity_embeddings(
     session: AsyncSession,
@@ -148,7 +123,6 @@ async def store_entity_embeddings(
     logger.info("entity_embeddings_stored", count=count)
     return count
 
-
 async def store_claim_embeddings(
     session: AsyncSession,
     claims: Sequence[dict[str, Any]],
@@ -178,12 +152,6 @@ async def store_claim_embeddings(
     logger.info("claim_embeddings_stored", count=count)
     return count
 
-
-# ──────────────────────────────────────────────────────────────
-# Similarity Search
-# ──────────────────────────────────────────────────────────────
-
-
 async def search_similar_entities(
     session: AsyncSession,
     query_text: str,
@@ -209,7 +177,6 @@ async def search_similar_entities(
         {"limit": limit},
     )
     return [dict(row._mapping) for row in result.fetchall()]
-
 
 async def search_similar_claims(
     session: AsyncSession,

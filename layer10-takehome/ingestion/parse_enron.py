@@ -30,11 +30,6 @@ from logging_config import get_logger
 
 logger = get_logger(__name__)
 
-# ──────────────────────────────────────────────────────────────
-# Data Model
-# ──────────────────────────────────────────────────────────────
-
-
 @dataclass(frozen=True, slots=True)
 class RawEmail:
     """
@@ -68,13 +63,7 @@ class RawEmail:
             f"{self.sender}|{date_str}|{self.subject}|{self.body_hash}".encode()
         ).hexdigest()
 
-
-# ──────────────────────────────────────────────────────────────
-# Header Parsing Helpers
-# ──────────────────────────────────────────────────────────────
-
 _RE_STRIP_ANGLES = re.compile(r"<([^>]+)>")
-
 
 def _parse_message_id(raw: str | None) -> str:
     """Extract a clean message-id, falling back to an empty string."""
@@ -82,7 +71,6 @@ def _parse_message_id(raw: str | None) -> str:
         return ""
     match = _RE_STRIP_ANGLES.search(raw)
     return match.group(1) if match else raw.strip()
-
 
 def _parse_recipients(msg: email.message.Message) -> list[str]:
     """
@@ -105,7 +93,6 @@ def _parse_recipients(msg: email.message.Message) -> list[str]:
                 addresses.append(addr.lower())
     return addresses
 
-
 def _parse_date(msg: email.message.Message) -> datetime | None:
     """Parse the Date header; returns None on failure."""
     raw = msg.get("Date")
@@ -116,13 +103,11 @@ def _parse_date(msg: email.message.Message) -> datetime | None:
     except (ValueError, TypeError):
         return None
 
-
 def _parse_references(raw: str | None) -> list[str]:
     """Parse a References header into a list of message-ids."""
     if not raw:
         return []
     return [m.group(1) for m in _RE_STRIP_ANGLES.finditer(raw)]
-
 
 def _extract_body(msg: email.message.Message) -> str:
     """
@@ -143,12 +128,6 @@ def _extract_body(msg: email.message.Message) -> str:
         if payload:
             return payload.decode("utf-8", errors="replace")
         return ""
-
-
-# ──────────────────────────────────────────────────────────────
-# Email File Parser
-# ──────────────────────────────────────────────────────────────
-
 
 def parse_email_file(filepath: Path, folder_path: str) -> RawEmail | None:
     """
@@ -185,12 +164,6 @@ def parse_email_file(filepath: Path, folder_path: str) -> RawEmail | None:
         folder_path=folder_path,
         raw_text=raw_text,
     )
-
-
-# ──────────────────────────────────────────────────────────────
-# Directory Walker
-# ──────────────────────────────────────────────────────────────
-
 
 def iter_maildir(
     base_dir: Path,
@@ -242,11 +215,7 @@ def iter_maildir(
         total_skipped=total_skipped,
     )
 
-
-# ──────────────────────────────────────────────────────────────
 # Async wrapper (for pipeline compatibility)
-# ──────────────────────────────────────────────────────────────
-
 
 async def aiter_maildir(
     base_dir: Path | None = None,
@@ -265,12 +234,6 @@ async def aiter_maildir(
 
     for raw_email in iter_maildir(base, users):
         yield raw_email
-
-
-# ──────────────────────────────────────────────────────────────
-# CLI Entrypoint
-# ──────────────────────────────────────────────────────────────
-
 
 def main() -> None:
     """Parse Enron emails and print summary stats (CLI entrypoint)."""
@@ -302,7 +265,6 @@ def main() -> None:
         unique_emails=unique,
         exact_duplicates=dedup_count,
     )
-
 
 if __name__ == "__main__":
     main()
